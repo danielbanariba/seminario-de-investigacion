@@ -1,0 +1,96 @@
+services:
+  db:
+    image: mysql:8.0
+    environment:
+      - MYSQL_ROOT_PASSWORD=password
+      - MYSQL_DATABASE=moodle
+      - MYSQL_USER=moodle
+      - MYSQL_PASSWORD=password
+    volumes:
+      - ./.data/mysql:/var/lib/mysql
+    ports:
+      - 3306:3306
+    command: --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-ppassword" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    image: lthub/moodle-mysql
+    build:
+      context: .
+      dockerfile: Dockerfile.mysql
+    ports:
+      - 8080:80
+    volumes:
+      - ./.data/web-mysql:/moodledata:rw
+    environment:
+      - MOODLE_DB_TYPE=mysqli
+      - MOODLE_DB_HOST=db
+      - MOODLE_DB_NAME=moodle
+      - MOODLE_DB_USER=moodle
+      - MOODLE_DB_PASSWORD=password
+      - MOODLE_DB_PREFIX=
+      - MOODLE_URL=http://localhost:8080
+      - MOODLE_REDIS_HOST=redis
+      - MOODLE_REDIS_PORT=6379
+      - MOODLE_REDIS_DB=0
+      - MOODLE_DISABLE_UPDATE_AUTODEPLOY=true
+      - MOODLE_SITE_FULLNAME=Moodle MySQL
+      - MOODLE_SITE_SHORTNAME=MoodleMySQL
+      - MOODLE_ADMIN_USER=admin
+      - MOODLE_ADMIN_PASS=password
+      - MOODLE_ADMIN_EMAIL=admin@example.com
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  redis:
+    image: redis:6.0-alpine
+    volumes:
+      - ./.data/redis-mysql:/data
+    ports:
+      - 6379:6379
+
+  # Contenedor para configurar Moodle
+  setup:
+    image: lthub/moodle-mysql
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - MOODLE_DB_TYPE=mysqli
+      - MOODLE_DB_HOST=db
+      - MOODLE_DB_PORT=3306
+      - MOODLE_DB_NAME=moodle
+      - MOODLE_DB_USER=moodle
+      - MOODLE_DB_PASSWORD=password
+      - MOODLE_DB_PREFIX=
+      - MOODLE_URL=http://localhost:8080
+      - MOODLE_SITE_FULLNAME=Moodle MySQL
+      - MOODLE_SITE_SHORTNAME=MoodleMySQL
+      - MOODLE_ADMIN_USER=admin
+      - MOODLE_ADMIN_PASS=password
+      - MOODLE_ADMIN_EMAIL=admin@example.com
+    volumes:
+      - ./.data/web-mysql:/moodledata:rw
+    command: >
+      bash -c "
+        chmod -R 777 /moodledata &&
+        cd /var/www/html &&
+        php admin/cli/install_database.php 
+        --agree-license 
+        --lang=en 
+        --adminuser=$$MOODLE_ADMIN_USER 
+        --adminpass=$$MOODLE_ADMIN_PASS 
+        --adminemail=$$MOODLE_ADMIN_EMAIL 
+        --fullname=\"$$MOODLE_SITE_FULLNAME\" 
+        --shortname=\"$$MOODLE_SITE_SHORTNAME\" 
+        --non-interactive
+      "
+    profiles:
+      - setup
