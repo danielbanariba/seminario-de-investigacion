@@ -1,0 +1,95 @@
+services:
+  db:
+    image: postgres:14
+    environment:
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_USER=moodle
+      - POSTGRES_DB=moodle
+    volumes:
+      - ./.data/postgres:/var/lib/postgresql/data
+    ports:
+      - 5432:5432
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U moodle" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    image: lthub/moodle-postgres
+    build:
+      context: .
+      dockerfile: Dockerfile.postgres
+    ports:
+      - 8081:80
+    volumes:
+      - ./.data/web-postgres:/moodledata:rw
+    environment:
+      - MOODLE_DB_TYPE=pgsql
+      - MOODLE_DB_HOST=db
+      - MOODLE_DB_PORT=5432
+      - MOODLE_DB_NAME=moodle
+      - MOODLE_DB_USER=moodle
+      - MOODLE_DB_PASSWORD=password
+      - MOODLE_DB_PREFIX=
+      - MOODLE_URL=http://localhost:8081
+      - MOODLE_REDIS_HOST=redis
+      - MOODLE_REDIS_PORT=6379
+      - MOODLE_REDIS_DB=1
+      - MOODLE_DISABLE_UPDATE_AUTODEPLOY=true
+      - MOODLE_SITE_FULLNAME=Moodle PostgreSQL
+      - MOODLE_SITE_SHORTNAME=MoodlePG
+      - MOODLE_ADMIN_USER=admin
+      - MOODLE_ADMIN_PASS=password
+      - MOODLE_ADMIN_EMAIL=admin@example.com
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  redis:
+    image: redis:6.0-alpine
+    volumes:
+      - ./.data/redis-postgres:/data
+    ports:
+      - 6380:6379
+
+  # Contenedor para configurar Moodle
+  setup:
+    image: lthub/moodle-postgres
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - MOODLE_DB_TYPE=pgsql
+      - MOODLE_DB_HOST=db
+      - MOODLE_DB_PORT=5432
+      - MOODLE_DB_NAME=moodle
+      - MOODLE_DB_USER=moodle
+      - MOODLE_DB_PASSWORD=password
+      - MOODLE_DB_PREFIX=
+      - MOODLE_URL=http://localhost:8081
+      - MOODLE_SITE_FULLNAME=Moodle PostgreSQL
+      - MOODLE_SITE_SHORTNAME=MoodlePG
+      - MOODLE_ADMIN_USER=admin
+      - MOODLE_ADMIN_PASS=password
+      - MOODLE_ADMIN_EMAIL=admin@example.com
+    volumes:
+      - ./.data/web-postgres:/moodledata:rw
+    command: >
+      bash -c "
+        chmod -R 777 /moodledata &&
+        cd /var/www/html &&
+        php admin/cli/install_database.php 
+        --agree-license 
+        --lang=en 
+        --adminuser=$$MOODLE_ADMIN_USER 
+        --adminpass=$$MOODLE_ADMIN_PASS 
+        --adminemail=$$MOODLE_ADMIN_EMAIL 
+        --fullname=\"$$MOODLE_SITE_FULLNAME\" 
+        --shortname=\"$$MOODLE_SITE_SHORTNAME\" 
+        --non-interactive
+      "
+    profiles:
+      - setup
