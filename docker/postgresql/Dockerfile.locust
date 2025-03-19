@@ -1,0 +1,11 @@
+
+FROM python:3.12-slim
+
+WORKDIR /mnt/locust
+
+COPY requirements.txt /mnt/locust/
+RUN pip install -r /mnt/locust/requirements.txt
+
+EXPOSE 8089
+
+ENTRYPOINT ["locust"]
