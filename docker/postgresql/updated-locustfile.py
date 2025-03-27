@@ -4,15 +4,6 @@ import re
 import logging
 from bs4 import BeautifulSoup
 from locust import HttpUser, task, between, tag
-import os
-
-# Leer el token desde una variable de entorno
-TOKEN_ENV_VAR = "MOODLE_API_TOKEN"
-token = os.getenv(TOKEN_ENV_VAR)
-
-if not token:
-    raise ValueError(f"La variable de entorno '{TOKEN_ENV_VAR}' no está configurada.")
-
 
 # Configuración de logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -28,7 +19,7 @@ class MoodleUser(HttpUser):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # Token de autenticación para la API de Moodle
-        self.token = TOKEN_ENV_VAR  # Reemplazar con tu token
+        self.token = '466a8b3c540b5d736b2d8b626d73db92'  # Reemplazar con tu token
         self.courses = []
         self.user_info = {}
         self.logged_in = True  # Con token, estamos siempre "logged in"

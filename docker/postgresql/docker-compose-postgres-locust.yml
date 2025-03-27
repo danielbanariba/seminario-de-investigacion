@@ -24,9 +24,9 @@ services:
       - 8081:80
     volumes:
       - ./.data/web-postgres:/moodledata:rw
+      - ./create_test_users.php:/var/www/html/create_test_users.php
     expose:
       - 80
-
     environment:
       - MOODLE_DB_TYPE=pgsql
       - MOODLE_DB_HOST=db
@@ -98,7 +98,7 @@ services:
     profiles:
       - setup
       
-  # Servicios de Locust para pruebas de carga (nuevos)
+  # Servicios de Locust para pruebas de carga
   locust-master:
     build:
       context: .
@@ -111,6 +111,7 @@ services:
     command: -f /mnt/locust/locustfile.py --master -H http://web:80
     depends_on:
       - web
+      - test-data-creator
 
   locust-worker:
     build:
@@ -131,13 +132,15 @@ services:
     depends_on:
       - web
     volumes:
-      - ./create_test_users.py:/var/www/create_test_users.py
+      - ./create_test_users.php:/var/www/html/create_test_users.php
       - ./.data/web-postgres:/moodledata:rw
     command: >
       bash -c "
         sleep 30 &&  # Esperar a que Moodle esté listo
         cd /var/www/html &&
-        php /var/www/create_test_users.php
+        php /var/www/html/create_test_users.php &&
+        # Crear token para web services
+        php admin/cli/enable_webservices.php &&
+        php admin/cli/create_token.php --username=admin --password=password --name=locust_token --service=moodle_mobile_app
       "
-    profiles:
-      - test
+    # Quitamos el profile para que se ejecute siempre
