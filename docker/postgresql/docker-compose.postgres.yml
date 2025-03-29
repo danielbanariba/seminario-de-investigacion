@@ -93,3 +93,52 @@ services:
       "
     profiles:
       - setup
+
+    # ! Code of grafana and prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    depends_on:
+      - pushgateway
+
+  pushgateway:
+    image: prom/pushgateway
+    container_name: prometheus_pushgateway
+    ports:
+      - "9091:9091"
+
+  influxdb:
+    image: influxdb:1.8
+    container_name: influxdb
+    ports:
+      - "8086:8086"
+    environment:
+      - INFLUXDB_DB=k6
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+      - influxdb
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+
+  k6:
+    image: grafana/k6:latest
+    container_name: k6
+    volumes:
+      - ./tests:/tests
+    entrypoint: ["k6"]
+    command: ["run", "--out=influxdb=http://influxdb:8086/k6", "/tests/test_script.js"]
+    depends_on:
+      - web
+      - influxdb
+
